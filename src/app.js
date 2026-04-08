@@ -18,6 +18,19 @@ app.use((_req, res) => {
 });
 
 app.use((error, _req, res, _next) => {
+  const dbConnectionErrorCodes = new Set([
+    "ECONNREFUSED",
+    "ENOTFOUND",
+    "ETIMEDOUT",
+    "PROTOCOL_CONNECTION_LOST",
+  ]);
+
+  if (error && dbConnectionErrorCodes.has(error.code)) {
+    return res.status(503).json({
+      message: "Database is unavailable. Check database configuration.",
+    });
+  }
+
   if (error && error.code === "ER_DUP_ENTRY") {
     return res.status(409).json({ message: "Email already exists." });
   }

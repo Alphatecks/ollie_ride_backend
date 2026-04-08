@@ -12,6 +12,7 @@ const env = {
     password: process.env.DB_PASSWORD || "",
     name: process.env.DB_NAME || "ollie_ride",
     connectionLimit: Number(process.env.DB_CONNECTION_LIMIT) || 10,
+    requiredOnBoot: process.env.DB_REQUIRED_ON_BOOT === "true",
   },
 };
 

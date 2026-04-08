@@ -16,6 +16,12 @@ Copy `.env.example` to `.env` and update values:
 cp .env.example .env
 ```
 
+For Render (or any cloud host), do not use localhost database values. Set:
+- `DB_HOST` to your external MySQL host
+- `DB_PORT` to your provider port (usually `3306`)
+- `DB_USER`, `DB_PASSWORD`, `DB_NAME` correctly
+- `DB_REQUIRED_ON_BOOT=false` to keep API online even if DB is temporarily down
+
 ## 3) Create database
 
 Run `database/schema.sql` in MySQL, or at minimum create:
@@ -35,6 +41,8 @@ Production:
 ```bash
 npm start
 ```
+
+If DB is unreachable, the app still starts and `/api/health` reports database status.
 
 ## API Endpoints
 
