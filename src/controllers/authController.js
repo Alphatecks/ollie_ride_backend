@@ -1,5 +1,9 @@
 const env = require("../config/env");
 const authService = require("../services/authService");
+const {
+  sendSignupOtpEmail,
+  sendPasswordResetOtpEmail,
+} = require("../services/emailService");
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
@@ -16,6 +20,33 @@ function isValidOtp(value) {
 function normalizeCountryCode(value) {
   const raw = typeof value === "string" && value.trim() ? value.trim() : "+880";
   return raw.startsWith("+") ? raw : `+${raw}`;
+}
+
+async function login(req, res, next) {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "email and password are required." });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: "Invalid email format." });
+    }
+
+    const result = await authService.login(email, password);
+
+    if (!result.ok) {
+      return res.status(401).json({ message: "Invalid email or password." });
+    }
+
+    res.json({
+      message: "Login successful.",
+      data: result.user,
+    });
+  } catch (error) {
+    next(error);
+  }
 }
 
 async function signupInitiate(req, res, next) {
@@ -61,6 +92,19 @@ async function signupInitiate(req, res, next) {
       gender,
       termsAccepted,
     });
+
+    try {
+      await sendSignupOtpEmail({
+        to: otpRecord.email,
+        name,
+        otpCode: otpRecord.otpCode,
+        expiresAt: otpRecord.expiresAt,
+      });
+    } catch (emailError) {
+      return res.status(500).json({
+        message: "Failed to send verification email. Please try again.",
+      });
+    }
 
     const response = {
       message: "OTP generated. Proceed to verification step.",
@@ -167,8 +211,138 @@ async function signupComplete(req, res, next) {
   }
 }
 
+async function forgotPasswordInitiate(req, res, next) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "email is required." });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: "Invalid email format." });
+    }
+
+    const otpRecord = await authService.requestPasswordResetOtp(email);
+
+    if (otpRecord.userExists) {
+      try {
+        await sendPasswordResetOtpEmail({
+          to: otpRecord.email,
+          name: otpRecord.name,
+          otpCode: otpRecord.otpCode,
+          expiresAt: otpRecord.expiresAt,
+        });
+      } catch (emailError) {
+        return res.status(500).json({
+          message: "Failed to send reset email. Please try again.",
+        });
+      }
+    }
+
+    const response = {
+      message: "If an account exists, a reset code has been sent to the email.",
+      email: otpRecord.email,
+      otpExpiresAt: otpRecord.expiresAt,
+    };
+
+    if (env.nodeEnv !== "production") {
+      response.devOtp = otpRecord.otpCode;
+      response.devUserExists = otpRecord.userExists;
+    }
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function forgotPasswordVerifyOtp(req, res, next) {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ message: "email and otp are required." });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: "Invalid email format." });
+    }
+
+    if (!isValidOtp(otp)) {
+      return res.status(400).json({ message: "OTP must be a 5-digit code." });
+    }
+
+    const result = await authService.verifyPasswordResetOtp(email, otp);
+
+    if (!result.ok) {
+      if (result.code === "NOT_FOUND") {
+        return res.status(404).json({ message: "Reset session not found." });
+      }
+      if (result.code === "OTP_EXPIRED") {
+        return res.status(410).json({ message: "OTP has expired. Request a new one." });
+      }
+      if (result.code === "OTP_INVALID") {
+        return res.status(400).json({ message: "Invalid OTP." });
+      }
+    }
+
+    res.json({ message: "OTP verified. Proceed to set a new password." });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function forgotPasswordReset(req, res, next) {
+  try {
+    const { email, password, confirmPassword } = req.body;
+
+    if (!email || !password || !confirmPassword) {
+      return res
+        .status(400)
+        .json({ message: "email, password and confirmPassword are required." });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: "Invalid email format." });
+    }
+
+    if (password.length < env.auth.passwordMinLength) {
+      return res.status(400).json({
+        message: `Password must be at least ${env.auth.passwordMinLength} characters.`,
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match." });
+    }
+
+    const result = await authService.resetPasswordWithOtp(email, password);
+
+    if (!result.ok) {
+      if (result.code === "NOT_FOUND") {
+        return res.status(404).json({ message: "Reset session not found." });
+      }
+      if (result.code === "OTP_NOT_VERIFIED") {
+        return res.status(400).json({ message: "OTP must be verified first." });
+      }
+      if (result.code === "OTP_EXPIRED") {
+        return res.status(410).json({ message: "OTP has expired. Request a new one." });
+      }
+    }
+
+    res.json({ message: "Password reset successful." });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
+  login,
   signupInitiate,
   signupVerifyOtp,
   signupComplete,
+  forgotPasswordInitiate,
+  forgotPasswordVerifyOtp,
+  forgotPasswordReset,
 };

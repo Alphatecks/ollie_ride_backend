@@ -37,6 +37,16 @@ create table if not exists public.signup_otps (
   updated_at timestamptz default now()
 );
 
+create table if not exists public.password_reset_otps (
+  id bigserial primary key,
+  email varchar(160) not null unique,
+  otp_code char(5) not null,
+  verified boolean not null default false,
+  expires_at timestamptz not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -50,6 +60,7 @@ $$;
 drop trigger if exists trg_users_set_updated_at on public.users;
 drop trigger if exists trg_auth_users_set_updated_at on public.auth_users;
 drop trigger if exists trg_signup_otps_set_updated_at on public.signup_otps;
+drop trigger if exists trg_password_reset_otps_set_updated_at on public.password_reset_otps;
 
 create trigger trg_users_set_updated_at
 before update on public.users
@@ -63,5 +74,10 @@ execute procedure public.set_updated_at();
 
 create trigger trg_signup_otps_set_updated_at
 before update on public.signup_otps
+for each row
+execute procedure public.set_updated_at();
+
+create trigger trg_password_reset_otps_set_updated_at
+before update on public.password_reset_otps
 for each row
 execute procedure public.set_updated_at();

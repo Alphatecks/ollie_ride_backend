@@ -268,10 +268,192 @@ async function completeSignup(email, password) {
   return { ok: true, user: userRows[0] || null };
 }
 
+async function login(email, password) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (env.db.client === "supabase") {
+    const supabase = getSupabaseClient();
+    const { data: user, error } = await supabase
+      .from("auth_users")
+      .select(
+        "id,full_name,email,phone_number,country_code,gender,terms_accepted,created_at,password_hash"
+      )
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!user) {
+      return { ok: false, code: "INVALID_CREDENTIALS" };
+    }
+
+    const matches = await bcrypt.compare(password, user.password_hash);
+    if (!matches) {
+      return { ok: false, code: "INVALID_CREDENTIALS" };
+    }
+
+    const { password_hash: _ignored, ...safeUser } = user;
+    return { ok: true, user: safeUser };
+  }
+
+  throw new Error("MySQL login is not enabled in Supabase-only mode.");
+}
+
+async function requestPasswordResetOtp(email) {
+  const normalizedEmail = normalizeEmail(email);
+  const otpCode = generateOtpCode();
+  const expiresAt = getOtpExpiryDate();
+
+  if (env.db.client !== "supabase") {
+    throw new Error("Password reset is not enabled in Supabase-only mode.");
+  }
+
+  const supabase = getSupabaseClient();
+
+  const { data: user, error: userError } = await supabase
+    .from("auth_users")
+    .select("id,full_name,email")
+    .eq("email", normalizedEmail)
+    .maybeSingle();
+
+  if (userError) {
+    throw userError;
+  }
+
+  if (!user) {
+    return { ok: true, email: normalizedEmail, userExists: false, otpCode, expiresAt };
+  }
+
+  const { error: upsertError } = await supabase.from("password_reset_otps").upsert(
+    {
+      email: normalizedEmail,
+      otp_code: otpCode,
+      verified: false,
+      expires_at: expiresAt.toISOString(),
+    },
+    { onConflict: "email" }
+  );
+
+  if (upsertError) {
+    throw upsertError;
+  }
+
+  return {
+    ok: true,
+    email: normalizedEmail,
+    userExists: true,
+    name: user.full_name,
+    otpCode,
+    expiresAt: expiresAt.toISOString(),
+  };
+}
+
+async function verifyPasswordResetOtp(email, otp) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (env.db.client !== "supabase") {
+    throw new Error("Password reset is not enabled in Supabase-only mode.");
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("password_reset_otps")
+    .select("email,otp_code,verified,expires_at")
+    .eq("email", normalizedEmail)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return { ok: false, code: "NOT_FOUND" };
+  }
+
+  if (isExpired(data.expires_at)) {
+    return { ok: false, code: "OTP_EXPIRED" };
+  }
+
+  if (data.otp_code !== otp) {
+    return { ok: false, code: "OTP_INVALID" };
+  }
+
+  if (!data.verified) {
+    const { error: updateError } = await supabase
+      .from("password_reset_otps")
+      .update({ verified: true })
+      .eq("email", normalizedEmail);
+
+    if (updateError) {
+      throw updateError;
+    }
+  }
+
+  return { ok: true };
+}
+
+async function resetPasswordWithOtp(email, password) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (env.db.client !== "supabase") {
+    throw new Error("Password reset is not enabled in Supabase-only mode.");
+  }
+
+  const supabase = getSupabaseClient();
+  const { data: otpRow, error: otpError } = await supabase
+    .from("password_reset_otps")
+    .select("email,verified,expires_at")
+    .eq("email", normalizedEmail)
+    .maybeSingle();
+
+  if (otpError) {
+    throw otpError;
+  }
+
+  if (!otpRow) {
+    return { ok: false, code: "NOT_FOUND" };
+  }
+
+  if (!otpRow.verified) {
+    return { ok: false, code: "OTP_NOT_VERIFIED" };
+  }
+
+  if (isExpired(otpRow.expires_at)) {
+    return { ok: false, code: "OTP_EXPIRED" };
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const { error: updateError } = await supabase
+    .from("auth_users")
+    .update({ password_hash: passwordHash })
+    .eq("email", normalizedEmail);
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  const { error: deleteError } = await supabase
+    .from("password_reset_otps")
+    .delete()
+    .eq("email", normalizedEmail);
+
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  return { ok: true };
+}
+
 module.exports = {
   initializeAuthTables,
   checkAccountExistsByEmail,
   storeSignupOtp,
   verifySignupOtp,
   completeSignup,
+  login,
+  requestPasswordResetOtp,
+  verifyPasswordResetOtp,
+  resetPasswordWithOtp,
 };

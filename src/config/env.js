@@ -19,6 +19,10 @@ const env = {
     url: process.env.SUPABASE_URL || "",
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
   },
+  email: {
+    resendApiKey: process.env.RESEND_API_KEY || "",
+    fromAddress: process.env.EMAIL_FROM_ADDRESS || "",
+  },
   auth: {
     otpTtlMinutes: Number(process.env.AUTH_OTP_TTL_MINUTES) || 10,
     passwordMinLength: Number(process.env.AUTH_PASSWORD_MIN_LENGTH) || 8,

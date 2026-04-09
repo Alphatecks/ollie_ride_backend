@@ -29,6 +29,10 @@ Auth tuning env vars:
 - `AUTH_OTP_TTL_MINUTES=10`
 - `AUTH_PASSWORD_MIN_LENGTH=8`
 
+Email (Resend):
+- `RESEND_API_KEY=your_resend_api_key`
+- `EMAIL_FROM_ADDRESS="Ollie Ride <no-reply@your-domain.com>"`
+
 ## 3) Create database
 
 Run `database/schema.sql` in Supabase SQL Editor.
@@ -62,6 +66,10 @@ Base URL: `http://localhost:5000/api`
 - `POST /auth/signup/initiate`
 - `POST /auth/signup/verify-otp`
 - `POST /auth/signup/complete`
+- `POST /auth/login`
+- `POST /auth/forgot-password/initiate`
+- `POST /auth/forgot-password/verify-otp`
+- `POST /auth/forgot-password/reset`
 
 ### POST /users body
 
@@ -101,5 +109,41 @@ Base URL: `http://localhost:5000/api`
   "email": "john@example.com",
   "password": "strong-password",
   "confirmPassword": "strong-password"
+}
+```
+
+### Login: POST /auth/login
+
+```json
+{
+  "email": "john@example.com",
+  "password": "strong-password"
+}
+```
+
+### Forgot password: POST /auth/forgot-password/initiate
+
+```json
+{
+  "email": "john@example.com"
+}
+```
+
+### Forgot password: POST /auth/forgot-password/verify-otp
+
+```json
+{
+  "email": "john@example.com",
+  "otp": "12345"
+}
+```
+
+### Forgot password: POST /auth/forgot-password/reset
+
+```json
+{
+  "email": "john@example.com",
+  "password": "new-strong-password",
+  "confirmPassword": "new-strong-password"
 }
 ```
