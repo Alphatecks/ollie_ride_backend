@@ -1,6 +1,9 @@
-# Ollie Ride Backend (Node + Raw SQL)
+# Ollie Ride Backend (Node + SQL)
 
-Express backend setup using plain SQL queries with MySQL (`mysql2`), no ORM.
+Ollie Ride is a ride-sharing application. This repository contains the backend API powering riders, drivers, trips, and related services.
+
+Express backend with:
+- Supabase (`@supabase/supabase-js`)
 
 ## 1) Install
 
@@ -16,17 +19,19 @@ Copy `.env.example` to `.env` and update values:
 cp .env.example .env
 ```
 
-For Render (or any cloud host), do not use localhost database values. Set:
-- `DB_HOST` to your external MySQL host
-- `DB_PORT` to your provider port (usually `3306`)
-- `DB_USER`, `DB_PASSWORD`, `DB_NAME` correctly
-- `DB_REQUIRED_ON_BOOT=false` to keep API online even if DB is temporarily down
+Set these values in `.env`:
+- `DB_CLIENT=supabase`
+- `SUPABASE_URL=...`
+- `SUPABASE_SERVICE_ROLE_KEY=...`
+- `DB_REQUIRED_ON_BOOT=false` (recommended on Render)
+
+Auth tuning env vars:
+- `AUTH_OTP_TTL_MINUTES=10`
+- `AUTH_PASSWORD_MIN_LENGTH=8`
 
 ## 3) Create database
 
-Run `database/schema.sql` in MySQL, or at minimum create:
-- database: `ollie_ride`
-- user with access to that database
+Run `database/schema.sql` in Supabase SQL Editor.
 
 ## 4) Run
 
@@ -54,6 +59,9 @@ Base URL: `http://localhost:5000/api`
 - `POST /users`
 - `PUT /users/:id`
 - `DELETE /users/:id`
+- `POST /auth/signup/initiate`
+- `POST /auth/signup/verify-otp`
+- `POST /auth/signup/complete`
 
 ### POST /users body
 
@@ -61,5 +69,37 @@ Base URL: `http://localhost:5000/api`
 {
   "name": "Jane Doe",
   "email": "jane@example.com"
+}
+```
+
+### Signup Step 1: POST /auth/signup/initiate
+
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phoneNumber": "1712345678",
+  "countryCode": "+880",
+  "gender": "male",
+  "termsAccepted": true
+}
+```
+
+### Signup Step 2: POST /auth/signup/verify-otp
+
+```json
+{
+  "email": "john@example.com",
+  "otp": "12345"
+}
+```
+
+### Signup Step 3: POST /auth/signup/complete
+
+```json
+{
+  "email": "john@example.com",
+  "password": "strong-password",
+  "confirmPassword": "strong-password"
 }
 ```

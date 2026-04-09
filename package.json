@@ -1,7 +1,7 @@
 {
   "name": "ollie_ride_backend",
   "version": "1.0.0",
-  "description": "Ollie Ride backend setup with Node.js, Express, and raw SQL (MySQL).",
+  "description": "Ollie Ride backend with Express, MySQL raw SQL, and Supabase client support.",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
@@ -13,6 +13,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@supabase/supabase-js": "^2.102.1",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",

@@ -35,6 +35,10 @@ app.use((error, _req, res, _next) => {
     return res.status(409).json({ message: "Email already exists." });
   }
 
+  if (error && error.code === "23505") {
+    return res.status(409).json({ message: "Email already exists." });
+  }
+
   console.error(error);
   res.status(500).json({ message: "Internal server error." });
 });

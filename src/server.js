@@ -1,19 +1,27 @@
 const app = require("./app");
 const env = require("./config/env");
 const { testDbConnection } = require("./config/db");
+const { testSupabaseConnection } = require("./config/supabase");
 const { createUsersTable } = require("./services/userService");
+const { initializeAuthTables } = require("./services/authService");
 const { setDatabaseReady } = require("./config/runtimeState");
 
 async function initializeDatabase() {
   try {
-    await testDbConnection();
+    if (env.db.client === "supabase") {
+      await testSupabaseConnection();
+    } else {
+      await testDbConnection();
+    }
+
     await createUsersTable();
+    await initializeAuthTables();
     setDatabaseReady(true, null);
-    console.log("Database connected successfully.");
+    console.log(`Database connected successfully using ${env.db.client}.`);
     return true;
   } catch (error) {
     setDatabaseReady(false, error.message);
-    console.error("Database not ready:", error.message);
+    console.error(`Database not ready (${env.db.client}):`, error.message);
     return false;
   }
 }
