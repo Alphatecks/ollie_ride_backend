@@ -33,6 +33,10 @@ Email (Resend):
 - `RESEND_API_KEY=your_resend_api_key`
 - `EMAIL_FROM_ADDRESS="Ollie Ride <no-reply@your-domain.com>"`
 
+JWT session:
+- `AUTH_JWT_SECRET=...` (required)
+- `AUTH_JWT_EXPIRES_IN=30d`
+
 ## 3) Create database
 
 Run `database/schema.sql` in Supabase SQL Editor.
@@ -67,6 +71,7 @@ Base URL: `http://localhost:5000/api`
 - `POST /auth/signup/verify-otp`
 - `POST /auth/signup/complete`
 - `POST /auth/login`
+- `GET /auth/me`
 - `POST /auth/forgot-password/initiate`
 - `POST /auth/forgot-password/verify-otp`
 - `POST /auth/forgot-password/reset`
@@ -119,6 +124,13 @@ Base URL: `http://localhost:5000/api`
   "email": "john@example.com",
   "password": "strong-password"
 }
+```
+
+### Session restore: GET /auth/me
+
+```bash
+curl -X GET http://localhost:5000/api/auth/me \
+  -H "Authorization: Bearer <auth_token>"
 ```
 
 ### Forgot password: POST /auth/forgot-password/initiate

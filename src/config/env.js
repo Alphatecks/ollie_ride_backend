@@ -26,6 +26,8 @@ const env = {
   auth: {
     otpTtlMinutes: Number(process.env.AUTH_OTP_TTL_MINUTES) || 10,
     passwordMinLength: Number(process.env.AUTH_PASSWORD_MIN_LENGTH) || 8,
+    jwtSecret: process.env.AUTH_JWT_SECRET || "",
+    jwtExpiresIn: process.env.AUTH_JWT_EXPIRES_IN || "30d",
   },
 };
 

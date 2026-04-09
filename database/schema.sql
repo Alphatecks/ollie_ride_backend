@@ -16,11 +16,16 @@ create table if not exists public.auth_users (
   phone_number varchar(30) not null unique,
   country_code varchar(8) not null default '+880',
   gender varchar(20) not null,
+  role varchar(20) not null default 'rider',
+  is_email_verified boolean not null default true,
   password_hash varchar(255) not null,
   terms_accepted boolean not null default true,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+alter table public.auth_users add column if not exists role varchar(20) not null default 'rider';
+alter table public.auth_users add column if not exists is_email_verified boolean not null default true;
 
 create table if not exists public.signup_otps (
   id bigserial primary key,

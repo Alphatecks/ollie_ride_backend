@@ -39,6 +39,10 @@ app.use((error, _req, res, _next) => {
     return res.status(409).json({ message: "Email already exists." });
   }
 
+  if (error && error.name === "JsonWebTokenError") {
+    return res.status(401).json({ message: "Invalid or expired token." });
+  }
+
   console.error(error);
   res.status(500).json({ message: "Internal server error." });
 });

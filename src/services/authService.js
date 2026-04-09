@@ -1,4 +1,5 @@
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const { pool } = require("../config/db");
 const env = require("../config/env");
 const { getSupabaseClient } = require("../config/supabase");
@@ -24,6 +25,49 @@ function getFullPhoneNumber(countryCode, phoneNumber) {
 
 function isExpired(expiresAt) {
   return new Date(expiresAt).getTime() < Date.now();
+}
+
+function issueAuthToken(user) {
+  if (!env.auth.jwtSecret) {
+    throw new Error("AUTH_JWT_SECRET is not configured.");
+  }
+
+  const payload = {
+    sub: String(user.id),
+    email: user.email,
+    role: user.role || "rider",
+  };
+
+  return jwt.sign(payload, env.auth.jwtSecret, { expiresIn: env.auth.jwtExpiresIn });
+}
+
+function normalizePhoneNumberForResponse(user) {
+  const countryCode = user.country_code || "+880";
+  const raw = user.phone_number || "";
+  let local = raw;
+  if (raw.startsWith(countryCode)) {
+    local = raw.slice(countryCode.length);
+  }
+
+  return {
+    phoneNumber: local,
+    countryCode,
+  };
+}
+
+function toMeUserShape(user) {
+  const { phoneNumber, countryCode } = normalizePhoneNumberForResponse(user);
+
+  return {
+    id: `user_${user.id}`,
+    email: user.email,
+    name: user.full_name,
+    phoneNumber,
+    countryCode,
+    gender: user.gender,
+    role: user.role || "rider",
+    isEmailVerified: Boolean(user.is_email_verified),
+  };
 }
 
 async function initializeAuthTables() {
@@ -206,11 +250,13 @@ async function completeSignup(email, password) {
         phone_number: signup.phone_number,
         country_code: signup.country_code,
         gender: signup.gender,
+        role: "rider",
+        is_email_verified: true,
         password_hash: passwordHash,
         terms_accepted: signup.terms_accepted,
       })
       .select(
-        "id,full_name,email,phone_number,country_code,gender,terms_accepted,created_at"
+        "id,full_name,email,phone_number,country_code,gender,role,is_email_verified,terms_accepted,created_at"
       )
       .single();
 
@@ -227,7 +273,8 @@ async function completeSignup(email, password) {
       throw deleteError;
     }
 
-    return { ok: true, user };
+    const authToken = issueAuthToken(user);
+    return { ok: true, user, authToken };
   }
 
   const [rows] = await pool.query(authQueries.FIND_SIGNUP_OTP_BY_EMAIL, [
@@ -276,7 +323,7 @@ async function login(email, password) {
     const { data: user, error } = await supabase
       .from("auth_users")
       .select(
-        "id,full_name,email,phone_number,country_code,gender,terms_accepted,created_at,password_hash"
+        "id,full_name,email,phone_number,country_code,gender,role,is_email_verified,terms_accepted,created_at,password_hash"
       )
       .eq("email", normalizedEmail)
       .maybeSingle();
@@ -295,7 +342,8 @@ async function login(email, password) {
     }
 
     const { password_hash: _ignored, ...safeUser } = user;
-    return { ok: true, user: safeUser };
+    const authToken = issueAuthToken(user);
+    return { ok: true, user: safeUser, authToken };
   }
 
   throw new Error("MySQL login is not enabled in Supabase-only mode.");
@@ -446,6 +494,34 @@ async function resetPasswordWithOtp(email, password) {
   return { ok: true };
 }
 
+async function getCurrentUserFromTokenPayload(payload) {
+  if (env.db.client !== "supabase") {
+    throw new Error("Session restore is not enabled in Supabase-only mode.");
+  }
+
+  const userId = Number(payload.sub);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return null;
+  }
+
+  const supabase = getSupabaseClient();
+  const { data: user, error } = await supabase
+    .from("auth_users")
+    .select("id,full_name,email,phone_number,country_code,gender,role,is_email_verified")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  return toMeUserShape(user);
+}
+
 module.exports = {
   initializeAuthTables,
   checkAccountExistsByEmail,
@@ -456,4 +532,6 @@ module.exports = {
   requestPasswordResetOtp,
   verifyPasswordResetOtp,
   resetPasswordWithOtp,
+  getCurrentUserFromTokenPayload,
+  toMeUserShape,
 };

@@ -42,7 +42,8 @@ async function login(req, res, next) {
 
     res.json({
       message: "Login successful.",
-      data: result.user,
+      auth_token: result.authToken,
+      user: authService.toMeUserShape(result.user),
     });
   } catch (error) {
     next(error);
@@ -204,8 +205,22 @@ async function signupComplete(req, res, next) {
 
     res.status(201).json({
       message: "Signup completed successfully.",
-      data: result.user,
+      auth_token: result.authToken,
+      user: authService.toMeUserShape(result.user),
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function me(req, res, next) {
+  try {
+    const user = await authService.getCurrentUserFromTokenPayload(req.auth);
+    if (!user) {
+      return res.status(401).json({ message: "Invalid session." });
+    }
+
+    res.json({ user });
   } catch (error) {
     next(error);
   }
@@ -339,6 +354,7 @@ async function forgotPasswordReset(req, res, next) {
 
 module.exports = {
   login,
+  me,
   signupInitiate,
   signupVerifyOtp,
   signupComplete,
